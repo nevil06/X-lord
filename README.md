@@ -1,4 +1,4 @@
-# Land Trust Infrastructure(work in progress)
+# X-Lord   Land Trust Infrastructure(work in progress)
 
 A high-fidelity MVP for a sovereign land record accountability system. This platform establishes transparent ownership lineage, fraud detection, and multi-departmental workflow synchronization using a Next.js monorepo, FastAPI AI Intelligence, and Simulated Blockchain checkpointing.
 
