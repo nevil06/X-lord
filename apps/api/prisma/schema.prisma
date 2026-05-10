@@ -1,0 +1,187 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis, pgcrypto]
+}
+
+model Parcel {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  landUid         String    @unique @map("land_uid") @db.VarChar(30)
+  stateCode       String    @map("state_code") @db.VarChar(5)
+  districtCode    String    @map("district_code") @db.VarChar(10)
+  talukCode       String    @map("taluk_code") @db.VarChar(10)
+  surveyNumber    String    @map("survey_number") @db.VarChar(30)
+  village         String?   @db.VarChar(100)
+  areaSqm         Decimal?  @map("area_sqm") @db.Decimal(12, 2)
+  status          String?   @default("VERIFIED") @db.VarChar(20)
+  parentLandUid   String?   @map("parent_land_uid") @db.VarChar(30)
+  boundary        Unsupported("geometry(Polygon, 4326)")?
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime? @default(now()) @map("updated_at") @db.Timestamptz()
+
+  ownershipEvents OwnershipEvent[]
+  mutations       Mutation[]
+  fraudFlags      FraudFlag[]
+  courtCases      CourtCase[]
+  documents       Document[]
+  alerts          Alert[]
+  gisBoundaries   GisBoundary[]
+
+  @@unique([stateCode, districtCode, talukCode, surveyNumber])
+  @@map("parcels")
+}
+
+model Owner {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fullName        String    @map("full_name") @db.VarChar(200)
+  aadhaarHash     String?   @map("aadhaar_hash") @db.VarChar(64)
+  email           String?   @db.VarChar(200)
+  phone           String?   @db.VarChar(20)
+  address         String?   @db.Text
+  isNri           Boolean?  @default(false) @map("is_nri")
+  ociNumber       String?   @map("oci_number") @db.VarChar(30)
+  country         String?   @default("IN") @db.VarChar(50)
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamptz()
+
+  eventsFrom      OwnershipEvent[] @relation("FromOwner")
+  eventsTo        OwnershipEvent[] @relation("ToOwner")
+  mutations       Mutation[]
+  alerts          Alert[]
+
+  @@map("owners")
+}
+
+model OwnershipEvent {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parcelId        String    @map("parcel_id") @db.Uuid
+  eventType       String    @map("event_type") @db.VarChar(30)
+  fromOwnerId     String?   @map("from_owner_id") @db.Uuid
+  toOwnerId       String?   @map("to_owner_id") @db.Uuid
+  eventDate       DateTime  @map("event_date") @db.Timestamptz()
+  documentHash    String?   @map("document_hash") @db.VarChar(64)
+  blockRef        String?   @map("block_ref") @db.VarChar(100)
+  verifierId      String?   @map("verifier_id") @db.VarChar(100)
+  metadata        Json?     @db.JsonB
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamptz()
+
+  parcel          Parcel    @relation(fields: [parcelId], references: [id])
+  fromOwner       Owner?    @relation("FromOwner", fields: [fromOwnerId], references: [id])
+  toOwner         Owner?    @relation("ToOwner", fields: [toOwnerId], references: [id])
+
+  @@map("ownership_events")
+}
+
+model Mutation {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parcelId        String    @map("parcel_id") @db.Uuid
+  mutationType    String    @map("mutation_type") @db.VarChar(30)
+  status          String?   @default("INITIATED") @db.VarChar(20)
+  initiatorId     String?   @map("initiator_id") @db.Uuid
+  approvals       Json?     @default("{}") @db.JsonB
+  rejectionReason String?   @map("rejection_reason") @db.Text
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime? @default(now()) @map("updated_at") @db.Timestamptz()
+
+  parcel          Parcel    @relation(fields: [parcelId], references: [id])
+  initiator       Owner?    @relation(fields: [initiatorId], references: [id])
+
+  @@map("mutations")
+}
+
+model FraudFlag {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parcelId        String    @map("parcel_id") @db.Uuid
+  flagType        String    @map("flag_type") @db.VarChar(50)
+  riskScore       Int?
+  explanation     String    @db.Text
+  aiModel         String?   @map("ai_model") @db.VarChar(50)
+  resolved        Boolean?  @default(false)
+  resolvedBy      String?   @map("resolved_by") @db.VarChar(100)
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamptz()
+
+  parcel          Parcel    @relation(fields: [parcelId], references: [id])
+
+  @@map("fraud_flags")
+}
+
+model CourtCase {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parcelId        String    @map("parcel_id") @db.Uuid
+  caseNumber      String    @map("case_number") @db.VarChar(50)
+  courtName       String?   @map("court_name") @db.VarChar(200)
+  filingDate      DateTime  @map("filing_date") @db.Timestamptz()
+  status          String?   @default("ACTIVE") @db.VarChar(20)
+  freezeStart     DateTime? @map("freeze_start") @db.Timestamptz()
+  freezeEnd       DateTime? @map("freeze_end") @db.Timestamptz()
+  judgmentHash    String?   @map("judgment_hash") @db.VarChar(64)
+  blockRef        String?   @map("block_ref") @db.VarChar(100)
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamptz()
+
+  parcel          Parcel    @relation(fields: [parcelId], references: [id])
+
+  @@map("court_cases")
+}
+
+model BlockchainCheckpoint {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  blockNumber     Int       @map("block_number")
+  eventHash       String    @map("event_hash") @db.VarChar(64)
+  signer          String    @db.VarChar(200)
+  parcelId        String?   @map("parcel_id") @db.Uuid
+  eventType       String?   @map("event_type") @db.VarChar(50)
+  timestamp       DateTime  @db.Timestamptz()
+  txId            String?   @map("tx_id") @db.VarChar(100)
+
+  @@map("blockchain_checkpoints")
+}
+
+model Document {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parcelId        String?   @map("parcel_id") @db.Uuid
+  docType         String    @map("doc_type") @db.VarChar(50)
+  filePath        String?   @map("file_path") @db.VarChar(500)
+  docHash         String?   @map("doc_hash") @db.VarChar(64)
+  extractedFields Json?     @map("extracted_fields") @db.JsonB
+  ocrConfidence   Decimal?  @map("ocr_confidence") @db.Decimal(5, 2)
+  uploadedBy      String?   @map("uploaded_by") @db.VarChar(100)
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamptz()
+
+  parcel          Parcel?   @relation(fields: [parcelId], references: [id])
+
+  @@map("documents")
+}
+
+model Alert {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parcelId        String    @map("parcel_id") @db.Uuid
+  ownerId         String    @map("owner_id") @db.Uuid
+  channel         String    @db.VarChar(20)
+  eventType       String    @map("event_type") @db.VarChar(50)
+  message         String?   @db.Text
+  sentAt          DateTime? @default(now()) @map("sent_at") @db.Timestamptz()
+  delivered       Boolean?  @default(false)
+
+  parcel          Parcel    @relation(fields: [parcelId], references: [id])
+  owner           Owner     @relation(fields: [ownerId], references: [id])
+
+  @@map("alerts")
+}
+
+model GisBoundary {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parcelId        String    @map("parcel_id") @db.Uuid
+  boundary        Unsupported("geometry(Polygon, 4326)")
+  surveyDate      DateTime? @map("survey_date") @db.Date
+  version         Int?      @default(1)
+  source          String?   @db.VarChar(50)
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamptz()
+
+  parcel          Parcel    @relation(fields: [parcelId], references: [id])
+
+  @@map("gis_boundaries")
+}

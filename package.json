@@ -1,0 +1,14 @@
+{
+  "name": "land-order",
+  "version": "1.0.0",
+  "description": "Land Trust Infrastructure",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "services/*"
+  ],
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "prisma": "^5.22.0"
+  }
+}

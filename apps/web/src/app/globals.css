@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary-navy: #0A1628;
+  --color-surface-dark: #111B2E;
+  --color-surface-mid: #1A2740;
+  --color-surface-light: #243351;
+  --color-border-color: #2A3A52;
+  --color-text-primary: #E8ECF1;
+  --color-text-secondary: #8B95A5;
+  --color-verified-green: #0D6E4B;
+  --color-pending-amber: #92400E;
+  --color-frozen-red: #7C1D1D;
+  --color-disputed-purple: #6B21A8;
+  --color-accent-blue: #1D4ED8;
+
+  --font-sans: var(--font-ibm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-ibm-serif), ui-serif, Georgia, serif;
+  --font-mono: var(--font-ibm-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-primary-navy);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+  }
+}
+
+/* Loading spinner */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Pulse animation for skeleton loading */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
