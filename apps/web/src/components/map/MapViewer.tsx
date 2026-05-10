@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import Map, { Source, Layer, FillLayer, Popup } from 'react-map-gl';
-import 'maplibre-gl/dist/maplibre-gl.css';
+import React, { useRef, useEffect, useState } from 'react';
 import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 
 const MAP_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 
@@ -14,17 +13,96 @@ interface MapViewerProps {
 }
 
 export default function MapViewer({ parcels, selectedParcel, onSelectParcel }: MapViewerProps) {
-  const [viewState, setViewState] = useState({
-    longitude: 77.5946,
-    latitude: 12.9716,
-    zoom: 14
-  });
-
-  const [geoJsonData, setGeoJsonData] = useState<any>(null);
-  const [popupInfo, setPopupInfo] = useState<any>(null);
+  const mapContainer = useRef<HTMLDivElement>(null);
+  const map = useRef<maplibregl.Map | null>(null);
+  const popup = useRef<maplibregl.Popup | null>(null);
+  
+  const [mapLoaded, setMapLoaded] = useState(false);
 
   useEffect(() => {
-    if (parcels && parcels.length > 0) {
+    if (map.current || !mapContainer.current) return;
+    
+    map.current = new maplibregl.Map({
+      container: mapContainer.current,
+      style: MAP_STYLE,
+      center: [77.5946, 12.9716],
+      zoom: 14
+    });
+
+    popup.current = new maplibregl.Popup({
+      closeButton: false,
+      closeOnClick: false
+    });
+
+    map.current.on('load', () => {
+      setMapLoaded(true);
+      
+      if (!map.current) return;
+
+      map.current.addSource('parcels', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+      });
+
+      map.current.addLayer({
+        id: 'parcel-polygons',
+        type: 'fill',
+        source: 'parcels',
+        paint: {
+          'fill-color': [
+            'match',
+            ['get', 'status'],
+            'VERIFIED', '#0D6E4B',
+            'PENDING', '#92400E',
+            'FROZEN', '#7C1D1D',
+            'DISPUTED', '#6B21A8',
+            '#8B95A5'
+          ],
+          'fill-opacity': 0.65
+        }
+      });
+
+      map.current.addLayer({
+        id: 'parcel-lines',
+        type: 'line',
+        source: 'parcels',
+        paint: {
+          'line-color': '#E8ECF1',
+          'line-width': 1.5
+        }
+      });
+
+      map.current.on('click', 'parcel-polygons', (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const feature = e.features[0];
+        const props = feature.properties;
+        
+        if (onSelectParcel) {
+          // Send selection back up
+          onSelectParcel({ land_uid: props.landUid });
+        }
+      });
+
+      map.current.on('mouseenter', 'parcel-polygons', () => {
+        if (map.current) map.current.getCanvas().style.cursor = 'pointer';
+      });
+
+      map.current.on('mouseleave', 'parcel-polygons', () => {
+        if (map.current) map.current.getCanvas().style.cursor = '';
+      });
+    });
+
+    return () => {
+      map.current?.remove();
+    };
+  }, []);
+
+  // Update data source when parcels change
+  useEffect(() => {
+    if (!mapLoaded || !map.current) return;
+    
+    const source = map.current.getSource('parcels') as maplibregl.GeoJSONSource;
+    if (source) {
       const features = parcels
         .filter(p => p.boundary_geojson)
         .map(p => ({
@@ -41,141 +119,61 @@ export default function MapViewer({ parcels, selectedParcel, onSelectParcel }: M
           }
         }));
 
-      setGeoJsonData({
+      source.setData({
         type: 'FeatureCollection',
         features
       });
       
-      // Auto-center map on first parcel
+      // Auto-center
       if (features.length > 0 && features[0].geometry?.coordinates?.[0]?.[0]) {
         const firstCoord = features[0].geometry.coordinates[0][0];
-        if (firstCoord && firstCoord.length === 2) {
-          setViewState(prev => ({
-            ...prev,
-            longitude: firstCoord[0],
-            latitude: firstCoord[1]
-          }));
-        }
+        map.current.flyTo({ center: [firstCoord[0], firstCoord[1]], zoom: 14 });
       }
-    } else {
-      setGeoJsonData(null);
     }
-  }, [parcels]);
+  }, [parcels, mapLoaded]);
 
-  // Pan to selected parcel
+  // Handle selected parcel zooming
   useEffect(() => {
-    if (selectedParcel?.boundary_geojson) {
-      try {
-        const geo = typeof selectedParcel.boundary_geojson === 'string' 
-          ? JSON.parse(selectedParcel.boundary_geojson) 
-          : selectedParcel.boundary_geojson;
-        const coord = geo.coordinates?.[0]?.[0];
-        if (coord) {
-          setViewState(prev => ({ ...prev, longitude: coord[0], latitude: coord[1], zoom: 16 }));
-          setPopupInfo({
-            longitude: coord[0],
-            latitude: coord[1],
-            landUid: selectedParcel.land_uid,
-            status: selectedParcel.status,
-            surveyNumber: selectedParcel.survey_number,
-            village: selectedParcel.village
-          });
-        }
-      } catch {}
+    if (!mapLoaded || !map.current || !selectedParcel || !popup.current) return;
+    
+    try {
+      const geo = typeof selectedParcel.boundary_geojson === 'string' 
+        ? JSON.parse(selectedParcel.boundary_geojson) 
+        : selectedParcel.boundary_geojson;
+      const coord = geo.coordinates?.[0]?.[0];
+      
+      if (coord) {
+        map.current.flyTo({ center: [coord[0], coord[1]], zoom: 16 });
+        
+        const popupHtml = `
+          <div style="background:#0F172A; color:#E8ECF1; padding:12px; border-radius:4px; min-width:200px;">
+            <div style="font-family:monospace; font-size:14px; font-weight:bold; color:#3B82F6; margin-bottom:4px;">${selectedParcel.land_uid}</div>
+            <div style="font-size:12px; color:#8B95A5; margin-bottom:4px;">Survey: ${selectedParcel.survey_number}</div>
+            ${selectedParcel.village ? `<div style="font-size:12px; color:#8B95A5; margin-bottom:8px;">Village: ${selectedParcel.village}</div>` : ''}
+            <span style="font-size:12px; font-weight:bold; padding:2px 8px; border-radius:4px; ${
+              selectedParcel.status === 'VERIFIED' ? 'background:rgba(13,110,75,0.2); color:#0D6E4B;' :
+              selectedParcel.status === 'PENDING' ? 'background:rgba(146,64,14,0.2); color:#92400E;' :
+              selectedParcel.status === 'FROZEN' ? 'background:rgba(124,29,29,0.2); color:#7C1D1D;' :
+              'background:#1E293B; color:#8B95A5;'
+            }">${selectedParcel.status}</span>
+          </div>
+        `;
+        
+        popup.current.setLngLat([coord[0], coord[1]])
+          .setHTML(popupHtml)
+          .addTo(map.current);
+      }
+    } catch (e) {
+      console.error(e);
     }
-  }, [selectedParcel]);
-
-  const polygonLayer: FillLayer = {
-    id: 'parcel-polygons',
-    type: 'fill',
-    paint: {
-      'fill-color': [
-        'match',
-        ['get', 'status'],
-        'VERIFIED', '#0D6E4B',
-        'PENDING', '#92400E',
-        'FROZEN', '#7C1D1D',
-        'DISPUTED', '#6B21A8',
-        '#8B95A5'
-      ],
-      'fill-opacity': 0.65
-    }
-  };
-
-  const lineLayer = {
-    id: 'parcel-lines',
-    type: 'line',
-    paint: {
-      'line-color': '#E8ECF1',
-      'line-width': 1.5
-    }
-  };
+  }, [selectedParcel, mapLoaded]);
 
   return (
     <div className="w-full h-full min-h-[500px] rounded-lg overflow-hidden border border-border-color shadow-lg relative">
-      <Map
-        {...viewState}
-        onMove={evt => setViewState(evt.viewState)}
-        mapStyle={MAP_STYLE}
-        mapLib={maplibregl}
-        interactiveLayerIds={['parcel-polygons']}
-        onClick={(e) => {
-          if (e.features && e.features.length > 0) {
-            const feature = e.features[0];
-            const props = feature.properties;
-            // Find the matching parcel from our data
-            const match = parcels.find(p => p.land_uid === props?.landUid);
-            if (match && onSelectParcel) {
-              onSelectParcel(match);
-            }
-            if (feature.geometry.type === 'Polygon') {
-              const coord = (feature.geometry as any).coordinates[0][0];
-              setPopupInfo({
-                longitude: coord[0],
-                latitude: coord[1],
-                landUid: props?.landUid,
-                status: props?.status,
-                surveyNumber: props?.surveyNumber,
-                village: props?.village
-              });
-            }
-          }
-        }}
-      >
-        {geoJsonData && (
-          <Source id="parcels" type="geojson" data={geoJsonData}>
-            <Layer {...(polygonLayer as any)} />
-            <Layer {...(lineLayer as any)} />
-          </Source>
-        )}
-
-        {popupInfo && (
-          <Popup
-            longitude={popupInfo.longitude}
-            latitude={popupInfo.latitude}
-            closeOnClick={false}
-            onClose={() => setPopupInfo(null)}
-            anchor="bottom"
-          >
-            <div className="bg-surface-dark text-text-primary p-3 rounded min-w-[200px]">
-              <div className="font-mono text-sm font-bold text-accent-blue mb-1">{popupInfo.landUid}</div>
-              <div className="text-xs text-text-secondary mb-1">Survey: {popupInfo.surveyNumber}</div>
-              {popupInfo.village && <div className="text-xs text-text-secondary mb-2">Village: {popupInfo.village}</div>}
-              <span className={`text-xs px-2 py-0.5 rounded font-bold ${
-                popupInfo.status === 'VERIFIED' ? 'bg-verified-green/20 text-verified-green' :
-                popupInfo.status === 'PENDING' ? 'bg-pending-amber/20 text-pending-amber' :
-                popupInfo.status === 'FROZEN' ? 'bg-frozen-red/20 text-frozen-red' :
-                'bg-surface-light text-text-secondary'
-              }`}>
-                {popupInfo.status}
-              </span>
-            </div>
-          </Popup>
-        )}
-      </Map>
+      <div ref={mapContainer} className="w-full h-full" />
       
       {/* Legend */}
-      <div className="absolute bottom-4 right-4 bg-surface-dark/90 backdrop-blur-sm p-4 rounded border border-border-color shadow-xl text-sm">
+      <div className="absolute bottom-4 right-4 bg-surface-dark/90 backdrop-blur-sm p-4 rounded border border-border-color shadow-xl text-sm z-10">
         <h4 className="font-serif font-bold text-text-primary mb-2">Parcel Status</h4>
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2"><div className="w-4 h-4 bg-verified-green rounded-sm"></div> Verified</div>

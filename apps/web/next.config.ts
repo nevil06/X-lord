@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  transpilePackages: ['react-map-gl', 'maplibre-gl'],
 };
 
 export default nextConfig;

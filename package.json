@@ -9,6 +9,8 @@
   ],
   "dependencies": {
     "@prisma/client": "^5.22.0",
-    "prisma": "^5.22.0"
+    "maplibre-gl": "^5.24.0",
+    "prisma": "^5.22.0",
+    "react-map-gl": "^8.1.1"
   }
 }
