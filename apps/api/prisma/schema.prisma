@@ -46,6 +46,7 @@ model Owner {
   isNri           Boolean?  @default(false) @map("is_nri")
   ociNumber       String?   @map("oci_number") @db.VarChar(30)
   country         String?   @default("IN") @db.VarChar(50)
+  photoUrl        String?   @map("photo_url") @db.VarChar(500)
   createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamptz()
 
   eventsFrom      OwnershipEvent[] @relation("FromOwner")

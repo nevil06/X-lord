@@ -26,7 +26,17 @@ router.get('/:parcelUid', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Parcel not found' });
     }
 
-    res.json({ lineage: (parcel as any).ownershipEvents });
+    const { ownershipEvents, ...parcelData } = parcel;
+    const latestEvent = ownershipEvents.length > 0 ? ownershipEvents[ownershipEvents.length - 1] : null;
+    const currentOwner = latestEvent ? latestEvent.toOwner : null;
+
+    res.json({ 
+      parcel: {
+        ...parcelData,
+        currentOwner
+      }, 
+      events: ownershipEvents 
+    });
   } catch (error: any) {
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }

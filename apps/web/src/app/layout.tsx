@@ -34,8 +34,9 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${ibmSans.variable} ${ibmSerif.variable} ${ibmMono.variable} h-full antialiased dark`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col font-sans bg-primary-navy text-text-primary">
+      <body className="min-h-full flex flex-col font-sans bg-primary-navy text-text-primary" suppressHydrationWarning>
         {children}
       </body>
     </html>

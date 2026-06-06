@@ -4,6 +4,19 @@ import { commitToBlockchain } from '../services/blockchain';
 
 const router = Router();
 
+// Get all active court cases
+router.get('/active', async (req: Request, res: Response) => {
+  try {
+    const cases = await prisma.courtCase.findMany({
+      where: { status: 'ACTIVE' },
+      include: { parcel: true }
+    });
+    res.json({ cases });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
 // Freeze a parcel (Court Action)
 router.post('/freeze', async (req: Request, res: Response) => {
   try {

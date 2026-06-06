@@ -106,7 +106,7 @@ export default function MapViewer({ parcels, selectedParcel, onSelectParcel }: M
       const features = parcels
         .filter(p => p.boundary_geojson)
         .map(p => ({
-          type: 'Feature',
+          type: 'Feature' as const,
           geometry: typeof p.boundary_geojson === 'string' 
             ? JSON.parse(p.boundary_geojson) 
             : p.boundary_geojson,
@@ -120,7 +120,7 @@ export default function MapViewer({ parcels, selectedParcel, onSelectParcel }: M
         }));
 
       source.setData({
-        type: 'FeatureCollection',
+        type: 'FeatureCollection' as const,
         features
       });
       
@@ -146,15 +146,15 @@ export default function MapViewer({ parcels, selectedParcel, onSelectParcel }: M
         map.current.flyTo({ center: [coord[0], coord[1]], zoom: 16 });
         
         const popupHtml = `
-          <div style="background:#0F172A; color:#E8ECF1; padding:12px; border-radius:4px; min-width:200px;">
-            <div style="font-family:monospace; font-size:14px; font-weight:bold; color:#3B82F6; margin-bottom:4px;">${selectedParcel.land_uid}</div>
-            <div style="font-size:12px; color:#8B95A5; margin-bottom:4px;">Survey: ${selectedParcel.survey_number}</div>
-            ${selectedParcel.village ? `<div style="font-size:12px; color:#8B95A5; margin-bottom:8px;">Village: ${selectedParcel.village}</div>` : ''}
+          <div style="background:var(--color-surface-dark); color:var(--color-text-primary); padding:12px; border-radius:4px; min-width:200px; border:1px solid var(--color-border-color);">
+            <div style="font-family:monospace; font-size:14px; font-weight:bold; color:var(--color-accent-blue); margin-bottom:4px;">${selectedParcel.land_uid}</div>
+            <div style="font-size:12px; color:var(--color-text-secondary); margin-bottom:4px;">Survey: ${selectedParcel.survey_number}</div>
+            ${selectedParcel.village ? `<div style="font-size:12px; color:var(--color-text-secondary); margin-bottom:8px;">Village: ${selectedParcel.village}</div>` : ''}
             <span style="font-size:12px; font-weight:bold; padding:2px 8px; border-radius:4px; ${
-              selectedParcel.status === 'VERIFIED' ? 'background:rgba(13,110,75,0.2); color:#0D6E4B;' :
-              selectedParcel.status === 'PENDING' ? 'background:rgba(146,64,14,0.2); color:#92400E;' :
-              selectedParcel.status === 'FROZEN' ? 'background:rgba(124,29,29,0.2); color:#7C1D1D;' :
-              'background:#1E293B; color:#8B95A5;'
+              selectedParcel.status === 'VERIFIED' ? 'background:rgba(13,110,75,0.2); color:var(--color-verified-green); border:1px solid rgba(13,110,75,0.3);' :
+              selectedParcel.status === 'PENDING' ? 'background:rgba(146,64,14,0.2); color:var(--color-pending-amber); border:1px solid rgba(146,64,14,0.3);' :
+              selectedParcel.status === 'FROZEN' ? 'background:rgba(124,29,29,0.2); color:var(--color-frozen-red); border:1px solid rgba(124,29,29,0.3);' :
+              'background:var(--color-surface-mid); color:var(--color-text-secondary); border:1px solid var(--color-border-color);'
             }">${selectedParcel.status}</span>
           </div>
         `;

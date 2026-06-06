@@ -21,5 +21,13 @@ services:
       - "6379:6379"
     restart: unless-stopped
 
+  ai:
+    build:
+      context: ./services/ai
+    container_name: land_order_ai
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
 volumes:
   postgres_data:

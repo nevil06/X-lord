@@ -14,7 +14,7 @@ async function main() {
   await prisma.blockchainCheckpoint.deleteMany();
   await prisma.document.deleteMany();
   await prisma.gisBoundary.deleteMany();
-  await prisma.$executeRawUnsafe('DELETE FROM "parcels"');
+  await prisma.parcel.deleteMany();
   await prisma.owner.deleteMany();
 
   // ─── 1. Create Demo Owners ─────────────────────────────
@@ -24,6 +24,7 @@ async function main() {
       phone: '+919876543210',
       address: '123 MG Road, Bengaluru, Karnataka',
       isNri: false,
+      photoUrl: '/owners/ramesh.png',
     }
   });
 
@@ -35,6 +36,7 @@ async function main() {
       isNri: true,
       country: 'USA',
       ociNumber: 'OCI-9283746',
+      photoUrl: '/owners/anjali.png',
     }
   });
 
@@ -44,6 +46,27 @@ async function main() {
       phone: '+919123456789',
       address: '45 Gandhi Nagar, Mysuru, Karnataka',
       isNri: false,
+      photoUrl: '/owners/suresh.png',
+    }
+  });
+
+  const owner4 = await prisma.owner.create({
+    data: {
+      fullName: 'Priya Sharma',
+      phone: '+919988776655',
+      address: '78 Whitefield, Bengaluru, Karnataka',
+      isNri: false,
+      photoUrl: '/owners/priya.png',
+    }
+  });
+
+  const owner5 = await prisma.owner.create({
+    data: {
+      fullName: 'Rajesh Kumar',
+      phone: '+919900112233',
+      address: '12 Outer Ring Road, Yelahanka, Bengaluru',
+      isNri: false,
+      photoUrl: '/owners/rajesh.png',
     }
   });
 
@@ -55,11 +78,12 @@ async function main() {
     }
   });
 
-  console.log(`Created owners: ${owner1.id}, ${owner2.id}, ${owner3.id}`);
+  console.log(`Created owners: ${owner1.fullName}, ${owner2.fullName}, ${owner3.fullName}, ${owner4.fullName}, ${owner5.fullName}`);
 
   // ─── 2. Create Parcels with PostGIS Boundaries ─────────
   const parcels: any[] = [];
 
+  // Parcel 1: Ramesh Gowda
   const p1Result = await prisma.$queryRawUnsafe(`
     INSERT INTO "parcels" (
       "id", "land_uid", "state_code", "district_code", "taluk_code", 
@@ -72,6 +96,7 @@ async function main() {
   `) as any[];
   parcels.push({ id: p1Result[0].id, uid: 'KA-BLR-KRP-0000001' });
 
+  // Parcel 2: Ramesh Gowda (Mutation Sale Pending to Anjali Desai)
   const p2Result = await prisma.$queryRawUnsafe(`
     INSERT INTO "parcels" (
       "id", "land_uid", "state_code", "district_code", "taluk_code", 
@@ -84,6 +109,7 @@ async function main() {
   `) as any[];
   parcels.push({ id: p2Result[0].id, uid: 'KA-BLR-KRP-0000002' });
 
+  // Parcel 3: Suresh Patil (Frozen due to court dispute)
   const p3Result = await prisma.$queryRawUnsafe(`
     INSERT INTO "parcels" (
       "id", "land_uid", "state_code", "district_code", "taluk_code", 
@@ -96,6 +122,7 @@ async function main() {
   `) as any[];
   parcels.push({ id: p3Result[0].id, uid: 'KA-MYS-HNK-0000001' });
 
+  // Parcel 4: Anjali Desai (NRI)
   const p4Result = await prisma.$queryRawUnsafe(`
     INSERT INTO "parcels" (
       "id", "land_uid", "state_code", "district_code", "taluk_code", 
@@ -108,11 +135,38 @@ async function main() {
   `) as any[];
   parcels.push({ id: p4Result[0].id, uid: 'KA-BLR-YLH-0000001' });
 
+  // Parcel 5: Priya Sharma
+  const p5Result = await prisma.$queryRawUnsafe(`
+    INSERT INTO "parcels" (
+      "id", "land_uid", "state_code", "district_code", "taluk_code", 
+      "survey_number", "village", "area_sqm", "status", "boundary"
+    ) VALUES (
+      gen_random_uuid(), 'KA-BLR-YLH-0000002', 'KA', 'BLR', 'YLH',
+      '88/2B', 'Yelahanka', 1800.00, 'VERIFIED', 
+      ST_GeomFromText('POLYGON((77.5810 13.1010, 77.5820 13.1010, 77.5820 13.1020, 77.5810 13.1020, 77.5810 13.1010))', 4326)
+    ) RETURNING id;
+  `) as any[];
+  parcels.push({ id: p5Result[0].id, uid: 'KA-BLR-YLH-0000002' });
+
+  // Parcel 6: Rajesh Kumar
+  const p6Result = await prisma.$queryRawUnsafe(`
+    INSERT INTO "parcels" (
+      "id", "land_uid", "state_code", "district_code", "taluk_code", 
+      "survey_number", "village", "area_sqm", "status", "boundary"
+    ) VALUES (
+      gen_random_uuid(), 'KA-BLR-YLH-0000003', 'KA', 'BLR', 'YLH',
+      '88/2C', 'Yelahanka', 1500.00, 'VERIFIED', 
+      ST_GeomFromText('POLYGON((77.5820 13.1010, 77.5830 13.1010, 77.5830 13.1020, 77.5820 13.1020, 77.5820 13.1010))', 4326)
+    ) RETURNING id;
+  `) as any[];
+  parcels.push({ id: p6Result[0].id, uid: 'KA-BLR-YLH-0000003' });
+
   console.log(`Created ${parcels.length} parcels.`);
 
   // ─── 3. Create Ownership Events (Lineage) ──────────────
+  
   // Parcel 1: Govt Grant → Ramesh Gowda
-  const event1 = await prisma.ownershipEvent.create({
+  await prisma.ownershipEvent.create({
     data: {
       parcelId: parcels[0].id,
       eventType: 'GRANT',
@@ -126,8 +180,8 @@ async function main() {
     }
   });
 
-  // Parcel 2: Ramesh → Anjali (Sale, Pending)
-  const event2 = await prisma.ownershipEvent.create({
+  // Parcel 2: Govt Grant → Ramesh Gowda (Pending sale to Anjali Desai)
+  await prisma.ownershipEvent.create({
     data: {
       parcelId: parcels[1].id,
       eventType: 'GRANT',
@@ -140,7 +194,7 @@ async function main() {
     }
   });
 
-  const event3 = await prisma.ownershipEvent.create({
+  await prisma.ownershipEvent.create({
     data: {
       parcelId: parcels[1].id,
       eventType: 'SALE',
@@ -154,8 +208,8 @@ async function main() {
     }
   });
 
-  // Parcel 3: Suresh owns it, FROZEN due to court case
-  const event4 = await prisma.ownershipEvent.create({
+  // Parcel 3: Suresh Patil
+  await prisma.ownershipEvent.create({
     data: {
       parcelId: parcels[2].id,
       eventType: 'GRANT',
@@ -168,7 +222,7 @@ async function main() {
     }
   });
 
-  const event5 = await prisma.ownershipEvent.create({
+  await prisma.ownershipEvent.create({
     data: {
       parcelId: parcels[2].id,
       eventType: 'FREEZE',
@@ -181,7 +235,7 @@ async function main() {
     }
   });
 
-  // Parcel 4: Anjali (NRI) owns it
+  // Parcel 4: Anjali Desai (NRI)
   await prisma.ownershipEvent.create({
     data: {
       parcelId: parcels[3].id,
@@ -195,19 +249,58 @@ async function main() {
     }
   });
 
+  // Parcel 5: Priya Sharma
+  await prisma.ownershipEvent.create({
+    data: {
+      parcelId: parcels[4].id,
+      eventType: 'REGISTRATION',
+      fromOwnerId: ownerGovt.id,
+      toOwnerId: owner4.id,
+      eventDate: new Date('2022-04-18'),
+      verifierId: 'SR-BLR-022',
+      blockRef: '7',
+      documentHash: crypto.createHash('sha256').update('reg-p5').digest('hex'),
+    }
+  });
+
+  // Parcel 6: Rajesh Kumar
+  await prisma.ownershipEvent.create({
+    data: {
+      parcelId: parcels[5].id,
+      eventType: 'REGISTRATION',
+      fromOwnerId: ownerGovt.id,
+      toOwnerId: owner5.id,
+      eventDate: new Date('2023-09-05'),
+      verifierId: 'SR-BLR-022',
+      blockRef: '8',
+      documentHash: crypto.createHash('sha256').update('reg-p6').digest('hex'),
+    }
+  });
+
   console.log('Created ownership lineage events.');
 
   // ─── 4. Create Blockchain Checkpoints ──────────────────
-  for (let i = 1; i <= 6; i++) {
+  const checkpointEvents = [
+    { block: 1, type: 'GRANT', pid: parcels[0].id, signer: 'SR-BLR-001' },
+    { block: 2, type: 'GRANT', pid: parcels[1].id, signer: 'SR-BLR-001' },
+    { block: 3, type: 'SALE', pid: parcels[1].id, signer: 'SR-BLR-092' },
+    { block: 4, type: 'GRANT', pid: parcels[2].id, signer: 'SR-MYS-004' },
+    { block: 5, type: 'FREEZE', pid: parcels[2].id, signer: 'HC-KAR-BENCH-02' },
+    { block: 6, type: 'REGISTRATION', pid: parcels[3].id, signer: 'SR-BLR-012' },
+    { block: 7, type: 'REGISTRATION', pid: parcels[4].id, signer: 'SR-BLR-022' },
+    { block: 8, type: 'REGISTRATION', pid: parcels[5].id, signer: 'SR-BLR-022' },
+  ];
+
+  for (const cp of checkpointEvents) {
     await prisma.blockchainCheckpoint.create({
       data: {
-        blockNumber: i,
-        eventHash: crypto.createHash('sha256').update(`block-${i}`).digest('hex'),
-        signer: i <= 2 ? 'SR-BLR-001' : i <= 4 ? 'SR-MYS-004' : 'HC-KAR-BENCH-02',
-        parcelId: parcels[Math.min(i - 1, parcels.length - 1)].id,
-        eventType: i === 5 ? 'FREEZE' : (i === 3 ? 'SALE' : 'GRANT'),
+        blockNumber: cp.block,
+        eventHash: crypto.createHash('sha256').update(`block-${cp.block}`).digest('hex'),
+        signer: cp.signer,
+        parcelId: cp.pid,
+        eventType: cp.type,
         txId: crypto.randomBytes(16).toString('hex'),
-        timestamp: new Date(Date.now() - (6 - i) * 86400000) // Spaced 1 day apart
+        timestamp: new Date(Date.now() - (9 - cp.block) * 86400000)
       }
     });
   }
@@ -232,15 +325,6 @@ async function main() {
     }
   });
 
-  await prisma.mutation.create({
-    data: {
-      parcelId: parcels[3].id,
-      mutationType: 'CORRECTION',
-      status: 'APPROVED',
-      initiatorId: owner2.id,
-      approvals: { approvedBy: 'SR-BLR-012', approvedAt: '2025-01-15' }
-    }
-  });
   console.log('Created mutations.');
 
   // ─── 6. Create Fraud Flags ─────────────────────────────
@@ -263,18 +347,6 @@ async function main() {
       explanation: 'GIS boundary for parcel KA-MYS-HNK-0000001 overlaps with adjacent survey 112/2 by 15%. Court investigation recommended.',
       aiModel: 'PostGIS-Overlap-v1',
       resolved: false
-    }
-  });
-
-  await prisma.fraudFlag.create({
-    data: {
-      parcelId: parcels[0].id,
-      flagType: 'DOCUMENT_MISMATCH',
-      riskScore: 35,
-      explanation: 'Minor discrepancy in owner name spelling between registration and mutation documents. Low risk.',
-      aiModel: 'OCR-Compare-v1',
-      resolved: true,
-      resolvedBy: 'SR-BLR-001'
     }
   });
   console.log('Created fraud flags.');

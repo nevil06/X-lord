@@ -11,18 +11,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         role: { label: "Role", type: "text" }
       },
       async authorize(credentials) {
-        // Mock authorization for MVP
-        // In reality, this would check against the database
-        const user = {
-          id: "1",
-          name: credentials?.username as string,
-          role: (credentials?.role as string) || "citizen",
+        const username = credentials?.username as string;
+        const password = credentials?.password as string;
+        const role = (credentials?.role as string) || "citizen";
+
+        // Enforce password check for write-capable and admin roles
+        if (["officer", "collector", "admin"].includes(role)) {
+          if (password !== "nevil@207") {
+            return null;
+          }
         }
-        
-        if (user) {
-          return user;
-        }
-        return null;
+
+        return {
+          id: role === "officer" ? "SR-BLR-092" : role === "collector" ? "DC-BLR-001" : "1",
+          name: username || "demo_user",
+          role: role,
+        };
       }
     })
   ],

@@ -5,6 +5,34 @@ import { generateLandUid } from '../services/landUid';
 
 const router = Router();
 
+const attachCurrentOwners = async (parcels: any[]) => {
+  if (!parcels || parcels.length === 0) return [];
+  
+  const parcelIds = parcels.map(p => p.id);
+  
+  // Fetch all ownership events for these parcels, ordered by eventDate desc
+  const events = await prisma.ownershipEvent.findMany({
+    where: { parcelId: { in: parcelIds } },
+    orderBy: { eventDate: 'desc' },
+    include: { toOwner: true }
+  });
+  
+  // Create a map from parcelId to latest owner
+  const ownerMap: Record<string, any> = {};
+  for (const event of events) {
+    if (!ownerMap[event.parcelId]) {
+      ownerMap[event.parcelId] = event.toOwner;
+    }
+  }
+  
+  return parcels.map(p => ({
+    ...p,
+    current_owner: ownerMap[p.id] || null,
+    currentOwner: ownerMap[p.id] || null
+  }));
+};
+
+
 // Register a new parcel
 router.post('/register', async (req: Request, res: Response) => {
   try {
@@ -82,15 +110,16 @@ router.get('/search', async (req: Request, res: Response) => {
     const searchQuery = `%${String(q)}%`;
     
     // Parameterized query prevents SQL injection
-    const parcels = await prisma.$queryRaw`
+    const rawParcels = await prisma.$queryRaw`
       SELECT "id", "land_uid", "state_code", "district_code", "taluk_code", 
              "survey_number", "village", "area_sqm", "status", 
              ST_AsGeoJSON("boundary") as "boundary_geojson"
       FROM "parcels"
       WHERE "land_uid" ILIKE ${searchQuery} OR "survey_number" ILIKE ${searchQuery}
       LIMIT 50;
-    `;
+    ` as any[];
 
+    const parcels = await attachCurrentOwners(rawParcels);
     res.status(200).json({ parcels });
   } catch (error: any) {
     console.error('Error searching parcels:', error);
@@ -101,13 +130,15 @@ router.get('/search', async (req: Request, res: Response) => {
 // Get all parcels (for map rendering)
 router.get('/all', async (req: Request, res: Response) => {
   try {
-    const parcels = await prisma.$queryRaw`
+    const rawParcels = await prisma.$queryRaw`
       SELECT "id", "land_uid", "state_code", "district_code", "taluk_code", 
              "survey_number", "village", "area_sqm", "status",
              ST_AsGeoJSON("boundary") as "boundary_geojson"
       FROM "parcels"
       LIMIT 200;
-    `;
+    ` as any[];
+    
+    const parcels = await attachCurrentOwners(rawParcels);
     res.json({ parcels });
   } catch (error: any) {
     res.status(500).json({ error: 'Internal server error' });
